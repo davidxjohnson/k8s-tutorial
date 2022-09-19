@@ -1,0 +1,43 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    app: hello
+  name: hello
+  namespace: default
+spec:
+  replicas: 2 # maintain this number of pods, until hpa makes a change
+  selector:
+    matchLabels:
+      app: hello
+  template:   # will apply to all pods in this deployment
+    metadata:
+      labels:
+        app: hello
+    spec:
+      containers:
+      - image: hello
+        imagePullPolicy: Never
+        name: hello
+        resources: # must define resources if you want to use hpa
+          limits:
+            cpu: 50m
+          requests:
+            cpu: 20m
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: hello
+  name: hello
+  namespace: default
+spec:
+  ports:
+  - nodePort: 32145 # range of 30000-32767, asigned if not defined
+    port: 80
+    protocol: TCP
+  selector:
+    app: hello
+  type: NodePort

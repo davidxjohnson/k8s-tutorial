@@ -1,0 +1,149 @@
+# aws cloudformation create-stack --stack-name k8s-tutorial 
+---
+Description: A running environment for the k8s tutorial
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+    - t3.micro
+    - t3.small
+    - t3.medium
+    - t3.large
+    - m4.large
+  LatestAmi:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    Description: The latest Linux 2 AMI that the instance will be created from.
+  VPCID:
+    Type: String
+    Description: Choose the VPC that is linked to your chosen subnet. Either your own, or the AWS auto-generated default VPC.
+    Default: vpc-20589148
+    AllowedValues:
+    - vpc-25fba05d # us-east-1 Virginia
+    - vpc-20589148 # us-east-2 Ohio
+    - vpc-947b83f3 # us-west-1 California
+    - vpc-6800cb11 # us-west-2 Oregon
+  AccountSubnet:
+    Type: String
+    Description: Use one of the public subnets allocated to your account (make sure it's in the same availability zone).
+    Default: subnet-0869b860
+    AllowedValues:
+    - subnet-92d057cf # us-east-1a
+    - subnet-0869b860 # us-east-2a
+    - subnet-62df7139 # us-west-1a
+    - subnet-fc505b9a # us-west-2a
+  AvailabilityZone:
+    Type: String
+    Description: Where you want the instance and volume to be
+    Default: us-east-2a
+    AllowedValues:
+    - us-east-1a
+    - us-east-2a
+    - us-west-1a
+    - us-west-2a
+  KeyPairName:
+    Type: String
+    Description: The name of the key-pair to use for the EC2 instance (for SSH).
+    Default: default-ec2
+  PublicDNS:
+    Type: String
+    Description: The public DNS name for the server
+    # Required: Yes
+    # Default: !Ref AWS::StackName.aeronaut.online
+Resources:
+  WebDNS:
+    DependsOn:
+    - WebElasticIp
+    Description: Create public DNS name for the server (links to ElasticIp)
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: Z2GW4OWAJ3WG1B
+      Region: us-east-2
+      Name:
+        Ref: PublicDNS
+      Comment: Public DNS name for the server.
+      Type: A
+      TTL: '120'
+      ResourceRecords:
+        [ !GetAtt ServerInstance.PublicIp ]
+      SetIdentifier:
+        Ref: PublicDNS
+  WebElasticIp:
+    DependsOn:
+    - ServerInstance
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref ServerInstance
+      Domain: vpc
+  ServerInstance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+    - ServerFirewallRules
+    Properties:
+      ImageId:
+        Ref: LatestAmi
+      InstanceType:
+        Ref: InstanceType
+      KeyName:
+        Ref: KeyPairName
+      AvailabilityZone:
+        Ref: AvailabilityZone
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: true
+        DeviceIndex: 0
+        SubnetId:
+          Ref: AccountSubnet
+        GroupSet:
+        - Ref: ServerFirewallRules
+      Tags:
+        -
+          Key: Name
+          Value: !Ref AWS::StackName
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - "\n"
+          - - "#!/bin/bash -v"
+            - sudo yum update -y
+            - sudo yum -y install lynx
+            - sudo yum -y install procps
+            - sudo yum -y install git-all
+            - curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
+            - chmod +x kubectl
+            - mv ./kubectl /usr/local/bin/kubectl
+            - sudo yum -y install docker
+            - sudo service docker start
+            - sudo su - ec2-user -c exit
+            - sudo usermod -aG docker ec2-user
+            - sudo systemctl enable docker
+            - curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-latest.x86_64.rpm
+            - sudo rpm -Uvh minikube-latest.x86_64.rpm
+            - rm minikube-latest.x86_64.rpm
+            - sudo sed -i s/PasswordAuthentication\ no/PasswordAuthentication\ yes/g  /etc/ssh/sshd_config
+            - sudo sed -i s/#PermitEmptyPasswords\ no/PermitEmptyPasswords\ yes/g  /etc/ssh/sshd_config
+            - curl -s http://169.254.169.254/latest/meta-data/security-groups | sudo passwd ec2-user --stdin
+            - echo "if [ ! -d \"k8s-tutorial\" ]; then git clone https://github.com/davidxjohnson/k8s-tutorial.git; k8s-tutorial/setup/minikube/minikube-config.sh; fi" >> /home/ec2-user/.bash_profile
+            - sudo systemctl restart sshd.service
+  ServerFirewallRules:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: 
+        Ref: AWS::StackName
+      GroupDescription: Restrict inbound access only to the SSH ports
+      VpcId:
+        Ref: VPCID
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: "-1"
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+Outputs:
+  ServerPublicIpAddress:
+    Value:
+      Fn::GetAtt:
+      - ServerInstance
+      - PublicIp

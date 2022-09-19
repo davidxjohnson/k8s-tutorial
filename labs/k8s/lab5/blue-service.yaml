@@ -1,0 +1,41 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    app: blue
+  name: blue
+  namespace: default
+spec:
+  replicas: 2 # maintain this number of pods, until hpa makes a change
+  selector:
+    matchLabels:
+      app: blue
+  template:   # will apply to all pods in this deployment
+    metadata:
+      labels:
+        app: blue
+    spec:
+      containers:
+      - image: hello
+        imagePullPolicy: Never
+        name: blue
+        resources: # must define resources if you want to use hpa
+          limits:
+            cpu: 50m
+          requests:
+            cpu: 20m
+---
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app: blue
+  name: blue
+  namespace: default
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+  selector:
+    app: blue

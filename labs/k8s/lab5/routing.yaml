@@ -1,0 +1,37 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  annotations:
+  name: blue
+  labels:
+    app: blue
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /blue
+        pathType: Prefix
+        backend:
+          service:
+            name: blue
+            port:
+              number: 80
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  annotations:
+  name: green
+  labels:
+    app: green
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /green
+        pathType: Prefix
+        backend:
+          service:
+            name: green
+            port:
+              number: 80
