@@ -1,5 +1,5 @@
 # k8s-tutorial
-## A Basic Kubernettes Tutorial Using Docker and Minikube
+## A Introductory Kubernettes Tutorial Using Docker and Minikube
 ### Objectives:
 * Understand Docker basics well enough to get started with K8S. 
 * Deploy a Docker container to miniKube to learn more about K8S.
